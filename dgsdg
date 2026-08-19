@@ -612,30 +612,7 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
                             FieldValue(coreIds, coreValues, "information_security_notes"), _
                             FieldValue(coreIds, coreValues, "compliance_notes"))
 
-    notesText = JoinLabelled( _
-        Array("Business Owner", "Status Business Owner", "Menschliche Pruefung", "Bekannte Vorarbeiten", _
-              "Qualitaet", "Datenschutz", "Informationssicherheit", "Risiken", "Compliance", _
-              "Strategischer Beitrag", "Triage", "Triage-Begruendung", "Interne Quellen", _
-              "Aehnlichkeitspruefung", "Offene Fragen", "Durch Team NA zu ergaenzen", _
-              "Interne Prozesseinordnung", "Quelle der Prozesseinordnung"), _
-        Array(FieldValue(coreIds, coreValues, "business_owner"), _
-              FieldValue(coreIds, coreValues, "business_owner_status"), _
-              FieldValue(coreIds, coreValues, "human_review_required"), _
-              FieldValue(coreIds, coreValues, "known_prework"), _
-              FieldValue(coreIds, coreValues, "quality_notes"), _
-              FieldValue(coreIds, coreValues, "data_protection_notes"), _
-              FieldValue(coreIds, coreValues, "information_security_notes"), _
-              FieldValue(coreIds, coreValues, "risk_notes"), _
-              FieldValue(coreIds, coreValues, "compliance_notes"), _
-              FieldValue(coreIds, coreValues, "strategic_contribution"), _
-              FieldValue(coreIds, coreValues, "triage_path"), _
-              FieldValue(coreIds, coreValues, "triage_reason"), _
-              FieldValue(coreIds, coreValues, "internal_sources_used"), _
-              FieldValue(coreIds, coreValues, "similarity_check_result"), _
-              FieldValue(coreIds, coreValues, "open_questions"), _
-              FieldValue(coreIds, coreValues, "team_na_supplements"), _
-              FieldValue(coreIds, coreValues, "process_classification_internal"), _
-              FieldValue(coreIds, coreValues, "process_classification_source")))
+        notesText = BuildCompactNotes(coreIds, coreValues)
     SetText backlog, rowIndex, "Anmerkungen", notesText
 
     sourceText = "Word-Import: " & FileNameFromPath(filePath) & _
@@ -951,17 +928,361 @@ Private Function OverallConfidence(ByRef coreIds() As String, ByRef coreValues()
     End Select
 End Function
 
-Private Function BuildEstimateEvidence(ByRef ids() As String, ByRef statusValues() As String, _
-    ByRef sourceValues() As String, ByRef confidenceValues() As String, ByRef verifyByValues() As String) As String
+Private Function BuildCompactNotes(ByRef coreIds() As String, _
+    ByRef coreValues() As String) As String
 
-    Dim i As Long, resultText As String
-    For i = LBound(ids) To UBound(ids)
-        If Len(resultText) > 0 Then resultText = resultText & vbLf
-        resultText = resultText & ids(i) & ": Status=" & statusValues(i) & _
-            "; Quelle=" & sourceValues(i) & "; Sicherheit=" & confidenceValues(i) & _
-            "; Pruefung=" & verifyByValues(i)
+    Dim resultText As String
+    Dim ownerValue As String
+    Dim reviewValue As String
+    Dim triageValue As String
+
+    ownerValue = FieldValue(coreIds, coreValues, "business_owner")
+    If IsOpenValue(ownerValue) Then
+        AddCompactLine resultText, "Business Owner", _
+            "noch zu best" & ChrW$(&HE4) & "tigen"
+    End If
+
+    reviewValue = NormalizeHeader( _
+        FieldValue(coreIds, coreValues, "human_review_required"))
+
+    If reviewValue = "true" Or reviewValue = "ja" Or _
+       reviewValue = "yes" Or _
+       InStr(reviewValue, "erforderlich") > 0 Or _
+       InStr(reviewValue, "zwingend") > 0 Then
+
+        AddCompactLine resultText, _
+            "Pr" & ChrW$(&HFC) & "fung", _
+            "Menschliche Kontrolle erforderlich"
+    End If
+
+    triageValue = MapTriageForNotes( _
+        FieldValue(coreIds, coreValues, "triage_path"))
+
+    AddCompactLine resultText, "Empfehlung", triageValue
+
+    AddCompactLine resultText, "Wesentliche Risiken", _
+        CompactList( _
+            FieldValue(coreIds, coreValues, "risk_notes"), 3)
+
+    AddCompactLine resultText, "Offene Punkte", _
+        CompactList( _
+            FieldValue(coreIds, coreValues, "open_questions"), 4)
+
+    AddCompactLine resultText, "Team NA", _
+        CompactList( _
+            FieldValue(coreIds, coreValues, "team_na_supplements"), 4)
+
+    BuildCompactNotes = resultText
+End Function
+
+Private Sub AddCompactLine(ByRef resultText As String, _
+    ByVal labelText As String, ByVal valueText As String)
+
+    valueText = Trim$(valueText)
+    If IsOpenValue(valueText) Then Exit Sub
+
+    If Len(resultText) > 0 Then
+        resultText = resultText & vbLf
+    End If
+
+    resultText = resultText & labelText & ": " & valueText
+End Sub
+
+Private Function CompactList(ByVal rawValue As String, _
+    ByVal maxItems As Long) As String
+
+    Dim parts As Variant
+    Dim itemText As String
+    Dim resultText As String
+    Dim includedCount As Long
+    Dim hasMore As Boolean
+    Dim i As Long
+
+    If IsOpenValue(rawValue) Then Exit Function
+
+    rawValue = Replace(rawValue, vbCr, " ")
+    rawValue = Replace(rawValue, vbLf, " ")
+    parts = Split(rawValue, ";")
+
+    For i = LBound(parts) To UBound(parts)
+        itemText = Trim$(CStr(parts(i)))
+
+        If Len(itemText) > 0 And _
+           Not IsDismissibleNoteItem(itemText) Then
+
+            If includedCount < maxItems Then
+                If Len(resultText) > 0 Then
+                    resultText = resultText & "; "
+                End If
+
+                resultText = resultText & _
+                    ShortenText(itemText, 90)
+
+                includedCount = includedCount + 1
+            Else
+                hasMore = True
+            End If
+        End If
     Next i
+
+    If hasMore Then
+        resultText = resultText & _
+            "; weitere Details im Word-Dokument"
+    End If
+
+    CompactList = resultText
+End Function
+
+Private Function IsDismissibleNoteItem( _
+    ByVal itemText As String) As Boolean
+
+    Dim normalized As String
+    normalized = NormalizeHeader(itemText)
+
+    IsDismissibleNoteItem = _
+        (normalized = "keine" Or _
+         Left$(normalized, 6) = "keine " Or _
+         Left$(normalized, 5) = "kein " Or _
+         Left$(normalized, 18) = "nicht erforderlich" Or _
+         Left$(normalized, 15) = "nicht vorhanden" Or _
+         Left$(normalized, 16) = "nicht zutreffend")
+End Function
+
+Private Function MapTriageForNotes( _
+    ByVal rawValue As String) As String
+
+    Dim normalized As String
+    normalized = NormalizeHeader(rawValue)
+
+    If IsOpenValue(rawValue) Then Exit Function
+
+    Select Case normalized
+        Case "self_service_copilot", _
+             "copilot_self_service", _
+             "quick_win", _
+             "quick_win_copilot"
+
+            MapTriageForNotes = "Copilot-Self-Service"
+
+        Case "technical_project", _
+             "technisches_projekt", _
+             "project"
+
+            MapTriageForNotes = "Technisches Projekt"
+
+        Case Else
+            MapTriageForNotes = _
+                ShortenText(Replace(rawValue, "_", " "), 100)
+    End Select
+End Function
+
+Private Function BuildEstimateEvidence( _
+    ByRef ids() As String, _
+    ByRef statusValues() As String, _
+    ByRef sourceValues() As String, _
+    ByRef confidenceValues() As String, _
+    ByRef verifyByValues() As String) As String
+
+    Dim confirmedCount As Long
+    Dim estimatedCount As Long
+    Dim calculatedCount As Long
+    Dim openCount As Long
+    Dim otherCount As Long
+
+    Dim statusGroup As String
+    Dim statusSummary As String
+    Dim sourceSummary As String
+    Dim sourceKeys As String
+    Dim verifySummary As String
+    Dim verifyKeys As String
+    Dim resultText As String
+    Dim humanValue As String
+    Dim i As Long
+
+    For i = LBound(ids) To UBound(ids)
+        statusGroup = EstimateStatusGroup(statusValues(i))
+
+        Select Case statusGroup
+            Case "confirmed"
+                confirmedCount = confirmedCount + 1
+            Case "estimated"
+                estimatedCount = estimatedCount + 1
+            Case "calculated"
+                calculatedCount = calculatedCount + 1
+            Case "open"
+                openCount = openCount + 1
+            Case Else
+                otherCount = otherCount + 1
+        End Select
+
+        If statusGroup <> "open" Then
+            humanValue = HumanEstimateSource( _
+                sourceValues(i), statusGroup)
+
+            AddUniqueText sourceSummary, sourceKeys, humanValue
+        End If
+
+        humanValue = HumanVerifyBy(verifyByValues(i))
+        AddUniqueText verifySummary, verifyKeys, humanValue
+    Next i
+
+    AddCountText statusSummary, confirmedCount, _
+        "best" & ChrW$(&HE4) & "tigt"
+
+    AddCountText statusSummary, estimatedCount, _
+        "grob gesch" & ChrW$(&HE4) & "tzt"
+
+    AddCountText statusSummary, calculatedCount, "berechnet"
+    AddCountText statusSummary, openCount, "offen"
+    AddCountText statusSummary, otherCount, "sonstig"
+
+    AddCompactLine resultText, "Status", statusSummary
+    AddCompactLine resultText, "Quellen", sourceSummary
+    AddCompactLine resultText, _
+        "Pr" & ChrW$(&HFC) & "fung", verifySummary
+
     BuildEstimateEvidence = resultText
+End Function
+
+Private Function EstimateStatusGroup( _
+    ByVal rawStatus As String) As String
+
+    Dim normalized As String
+    normalized = NormalizeHeader(rawStatus)
+
+    If IsOpenValue(rawStatus) Then
+        EstimateStatusGroup = "open"
+
+    ElseIf InStr(normalized, "confirmed") > 0 Or _
+           InStr(normalized, "bestaetig") > 0 Then
+        EstimateStatusGroup = "confirmed"
+
+    ElseIf InStr(normalized, "calculation") > 0 Or _
+           InStr(normalized, "calculated") > 0 Or _
+           InStr(normalized, "berechn") > 0 Then
+        EstimateStatusGroup = "calculated"
+
+    ElseIf InStr(normalized, "rough") > 0 Or _
+           InStr(normalized, "estimate") > 0 Or _
+           InStr(normalized, "schaetz") > 0 Then
+        EstimateStatusGroup = "estimated"
+
+    Else
+        EstimateStatusGroup = "other"
+    End If
+End Function
+
+Private Function HumanEstimateSource( _
+    ByVal rawSource As String, _
+    ByVal statusGroup As String) As String
+
+    Dim normalized As String
+    normalized = NormalizeHeader(rawSource)
+
+    If IsOpenValue(rawSource) Then Exit Function
+
+    If statusGroup = "calculated" Then
+        HumanEstimateSource = "Berechnung aus Angaben"
+
+    ElseIf InStr(normalized, "nutzerbestaetig") > 0 Then
+        HumanEstimateSource = _
+            "Nutzerbest" & ChrW$(&HE4) & "tigung"
+
+    ElseIf InStr(normalized, "nutzer") > 0 Then
+        HumanEstimateSource = "Nutzerangabe"
+
+    ElseIf InStr(normalized, "intern") > 0 Or _
+           InStr(normalized, "dokument") > 0 Or _
+           InStr(normalized, "sharepoint") > 0 Then
+        HumanEstimateSource = "Interne Quelle"
+
+    Else
+        HumanEstimateSource = ShortenText(rawSource, 70)
+    End If
+End Function
+
+Private Function HumanVerifyBy( _
+    ByVal rawValue As String) As String
+
+    Dim normalized As String
+    normalized = NormalizeHeader(rawValue)
+
+    If IsOpenValue(rawValue) Then Exit Function
+
+    Select Case normalized
+        Case "department", "fachbereich"
+            HumanVerifyBy = "Fachbereich"
+
+        Case "team_na", "team na"
+            HumanVerifyBy = "Team NA"
+
+        Case "business_owner", "business owner"
+            HumanVerifyBy = "Business Owner"
+
+        Case "implementation_team", "umsetzungsteam"
+            HumanVerifyBy = "Umsetzungsteam"
+
+        Case "committee", "fachgremium"
+            HumanVerifyBy = "Fachgremium"
+
+        Case Else
+            HumanVerifyBy = _
+                ShortenText(Replace(rawValue, "_", " "), 50)
+    End Select
+End Function
+
+Private Sub AddCountText(ByRef resultText As String, _
+    ByVal itemCount As Long, ByVal descriptionText As String)
+
+    If itemCount = 0 Then Exit Sub
+
+    If Len(resultText) > 0 Then
+        resultText = resultText & ", "
+    End If
+
+    resultText = resultText & _
+        CStr(itemCount) & " " & descriptionText
+End Sub
+
+Private Sub AddUniqueText(ByRef resultText As String, _
+    ByRef keyText As String, ByVal newValue As String)
+
+    Dim normalizedKey As String
+
+    If IsOpenValue(newValue) Then Exit Sub
+
+    normalizedKey = "|" & NormalizeHeader(newValue) & "|"
+
+    If InStr(1, keyText, normalizedKey, _
+        vbTextCompare) > 0 Then Exit Sub
+
+    keyText = keyText & normalizedKey
+
+    If Len(resultText) > 0 Then
+        resultText = resultText & ", "
+    End If
+
+    resultText = resultText & newValue
+End Sub
+
+Private Function ShortenText(ByVal rawValue As String, _
+    ByVal maximumLength As Long) As String
+
+    rawValue = Replace(rawValue, vbCr, " ")
+    rawValue = Replace(rawValue, vbLf, " ")
+
+    Do While InStr(rawValue, "  ") > 0
+        rawValue = Replace(rawValue, "  ", " ")
+    Loop
+
+    rawValue = Trim$(rawValue)
+
+    If Len(rawValue) <= maximumLength Then
+        ShortenText = rawValue
+    Else
+        ShortenText = _
+            Left$(rawValue, maximumLength - 3) & "..."
+    End If
 End Function
 
 Private Function FileNameFromPath(ByVal fullPath As String) As String

@@ -1,14 +1,16 @@
+Attribute VB_Name = "modUseCaseWordImport"
 Option Explicit
 
 ' Importiert den technischen Anhang eines freigegebenen Copilot-Word-Exports
 ' in die bestehende Backlog-Tabelle. Gesamtprioritaet und Quick-Win werden
 ' bewusst nicht geschrieben: Diese Werte berechnet die Arbeitsmappe selbst.
 
-Private Const EXPECTED_SCHEMA As String = "2.0"
+Private Const EXPECTED_SCHEMA As String = "2.1"
 Private Const BACKLOG_SHEET As String = "Backlog"
 Private Const PREFERRED_TABLE As String = "Tabelle14"
 Private Const FILE_PICKER As Long = 3
 Private Const IMPORT_TITLE As String = "Use-Case-Import"
+Private Const REQUESTER_HEADER As String = "Einreicher / Auftraggeber"
 
 Public Sub ImportUseCaseFromWord()
     Dim filePath As String
@@ -66,9 +68,9 @@ Public Sub ImportUseCaseFromWord()
     Application.ScreenUpdating = True
 
     MsgBox "Der Use Case '" & ideaTitle & "' wurde in die erste freie Backlog-Zeile importiert." & vbCrLf & vbCrLf & _
-           "Nutzen, Aufwand und Dringlichkeit wurden als Eingabewerte uebernommen. " & _
+           GermanText("Nutzen, Aufwand und Dringlichkeit wurden als Eingabewerte {ue}bernommen. ") & _
            "Gesamtprioritaet und Quick-Win bleiben Formeln der Arbeitsmappe." & vbCrLf & vbCrLf & _
-           "Bitte pruefe den neuen Eintrag und speichere die Arbeitsmappe anschliessend.", _
+           GermanText("Bitte pr{ue}fe den neuen Eintrag und speichere die Arbeitsmappe anschlie{ss}end."), _
            vbInformation, IMPORT_TITLE
     Exit Sub
 
@@ -91,7 +93,7 @@ ImportError:
     End If
     On Error GoTo 0
 
-    MsgBox "Der Import wurde abgebrochen. Es wurde kein unvollstaendiger Backlog-Eintrag behalten." & _
+    MsgBox GermanText("Der Import wurde abgebrochen. Es wurde kein unvollst{ae}ndiger Backlog-Eintrag behalten.") & _
            vbCrLf & vbCrLf & "Grund: " & failureReason, vbCritical, IMPORT_TITLE
 End Sub
 
@@ -99,11 +101,11 @@ Private Function PickWordFile() As String
     Dim selectedFile As Variant
 
     selectedFile = Application.GetOpenFilename( _
-        Title:="Copilot-Word-Export fuer den Backlog-Import auswaehlen", _
+        Title:=GermanText("Copilot-Word-Export f{ue}r den Backlog-Import ausw{ae}hlen"), _
         MultiSelect:=False)
     If VarType(selectedFile) = vbBoolean Then Exit Function
     If LCase$(Right$(CStr(selectedFile), 5)) <> ".docx" Then
-        Err.Raise vbObjectError + 99, IMPORT_TITLE, "Bitte eine Word-Datei im Format .docx auswaehlen."
+        Err.Raise vbObjectError + 99, IMPORT_TITLE, GermanText("Bitte eine Word-Datei im Format .docx ausw{ae}hlen.")
     End If
     PickWordFile = CStr(selectedFile)
 End Function
@@ -121,15 +123,15 @@ Private Sub ReadAndValidateWordExport(ByVal filePath As String, _
 
     On Error GoTo WordError
 
-    stageName = "Mit geoeffnetem Microsoft Word verbinden"
+    stageName = GermanText("Mit ge{oe}ffnetem Microsoft Word verbinden")
     On Error Resume Next
     Set wordApp = GetObject(, "Word.Application")
     On Error GoTo WordError
     If wordApp Is Nothing Then
         Err.Raise vbObjectError + 98, IMPORT_TITLE, _
-            "Microsoft Word ist nicht geoeffnet. Bitte Word einmal starten und den Import danach erneut ausfuehren."
+            GermanText("Microsoft Word ist nicht ge{oe}ffnet. Bitte Word einmal starten und den Import danach erneut ausf{ue}hren.")
     End If
-    stageName = "Word-Dokument oeffnen"
+    stageName = GermanText("Word-Dokument {oe}ffnen")
     Set wordDocument = wordApp.Documents.Open(filePath, False, True, False)
     stageName = "Dokumenttext lesen"
     documentText = wordDocument.Content.Text
@@ -139,7 +141,7 @@ Private Sub ReadAndValidateWordExport(ByVal filePath As String, _
        InStr(1, documentText, "BEGIN_ESTIMATE_REGISTER_V2", vbTextCompare) = 0 Or _
        InStr(1, documentText, "END_ESTIMATE_REGISTER_V2", vbTextCompare) = 0 Then
         Err.Raise vbObjectError + 100, IMPORT_TITLE, _
-            "Eine technische Start- oder Endmarkierung fehlt. Bitte den Export-Prompt erneut ausfuehren."
+            GermanText("Eine technische Start- oder Endmarkierung fehlt. Bitte den Export-Prompt erneut ausf{ue}hren.")
     End If
 
     stageName = "Technische Tabellen suchen"
@@ -154,28 +156,28 @@ Private Sub ReadAndValidateWordExport(ByVal filePath As String, _
     End If
     If estimateTable Is Nothing Then
         Err.Raise vbObjectError + 102, IMPORT_TITLE, _
-            "Die technische Schaetzungstabelle wurde nicht gefunden."
+            GermanText("Die technische Sch{ae}tzungstabelle wurde nicht gefunden.")
     End If
-    If coreTable.Rows.Count <> 69 Then
+    If coreTable.Rows.Count <> 70 Then
         Err.Raise vbObjectError + 103, IMPORT_TITLE, _
-            "Die Kerntabelle hat " & coreTable.Rows.Count & " statt 69 Zeilen."
+            "Die Kerntabelle hat " & coreTable.Rows.Count & " statt 70 Zeilen."
     End If
     If estimateTable.Rows.Count <> 18 Then
         Err.Raise vbObjectError + 104, IMPORT_TITLE, _
-            "Die Schaetzungstabelle hat " & estimateTable.Rows.Count & " statt 18 Zeilen."
+            GermanText("Die Sch{ae}tzungstabelle hat ") & estimateTable.Rows.Count & " statt 18 Zeilen."
     End If
 
     stageName = "Kerntabelle lesen"
     ReadCoreTable coreTable, coreIds, coreValues
-    stageName = "Schaetzungstabelle lesen"
+    stageName = GermanText("Sch{ae}tzungstabelle lesen")
     ReadEstimateTable estimateTable, estimateIds, estimateStatus, estimateSource, estimateConfidence, estimateVerifyBy
 
-    stageName = "Kerndaten pruefen"
+    stageName = GermanText("Kerndaten pr{ue}fen")
     ValidateCoreData coreIds, coreValues
-    stageName = "Schaetzungsnachweise pruefen"
+    stageName = GermanText("Sch{ae}tzungsnachweise pr{ue}fen")
     ValidateEstimateData coreIds, coreValues, estimateIds, estimateStatus, estimateSource, estimateConfidence, estimateVerifyBy
 
-    stageName = "Word-Dokument schliessen"
+    stageName = GermanText("Word-Dokument schlie{ss}en")
     wordDocument.Close False
     Exit Sub
 
@@ -263,12 +265,12 @@ Private Sub ValidateCoreData(ByRef ids() As String, ByRef values() As String)
 
     If FieldValue(ids, values, "schema_version") <> EXPECTED_SCHEMA Then
         Err.Raise vbObjectError + 110, IMPORT_TITLE, _
-            "Nicht unterstuetzte Schema-Version: " & FieldValue(ids, values, "schema_version")
+            GermanText("Nicht unterst{ue}tzte Schema-Version: ") & FieldValue(ids, values, "schema_version")
     End If
     If Not IsAllowedValue(FieldValue(ids, values, "document_status"), _
         Array("confirmed_draft", "confirmed_final")) Then
         Err.Raise vbObjectError + 111, IMPORT_TITLE, _
-            "Der Dokumentstatus ist nicht als bestaetigter Entwurf oder bestaetigte Endfassung gekennzeichnet."
+            GermanText("Der Dokumentstatus ist nicht als best{ae}tigter Entwurf oder best{ae}tigte Endfassung gekennzeichnet.")
     End If
     If Not IsAllowedValue(LCase$(FieldValue(ids, values, "test_case_flag")), Array("true", "false")) Then
         Err.Raise vbObjectError + 112, IMPORT_TITLE, "test_case_flag muss true oder false sein."
@@ -277,6 +279,7 @@ Private Sub ValidateCoreData(ByRef ids() As String, ByRef values() As String)
     RequireText ids, values, "idea_title"
     RequireText ids, values, "short_description"
     RequireText ids, values, "process_label_user"
+    RequireText ids, values, "requesting_party"
     RequireText ids, values, "current_workflow"
     RequireText ids, values, "pain_point"
     RequireText ids, values, "target_state"
@@ -286,12 +289,12 @@ Private Sub ValidateCoreData(ByRef ids() As String, ByRef values() As String)
     RequireText ids, values, "score_urgency_reason"
 
     If Not TryParseIsoDate(FieldValue(ids, values, "captured_at"), annualHours) Then
-        Err.Raise vbObjectError + 113, IMPORT_TITLE, "captured_at muss ein gueltiges Datum im Format JJJJ-MM-TT sein."
+        Err.Raise vbObjectError + 113, IMPORT_TITLE, GermanText("captured_at muss ein g{ue}ltiges Datum im Format JJJJ-MM-TT sein.")
     End If
     If Len(FieldValue(ids, values, "latest_effective_date")) > 0 Then
         If Not TryParseIsoDate(FieldValue(ids, values, "latest_effective_date"), annualHours) Then
             Err.Raise vbObjectError + 114, IMPORT_TITLE, _
-                "latest_effective_date ist kein gueltiges Datum im Format JJJJ-MM-TT."
+                GermanText("latest_effective_date ist kein g{ue}ltiges Datum im Format JJJJ-MM-TT.")
         End If
     End If
 
@@ -319,7 +322,7 @@ Private Sub ValidateCoreData(ByRef ids() As String, ByRef values() As String)
        TryParseNonNegativeNumber(FieldValue(ids, values, "saving_minutes_per_case"), savingValue) Then
         If savingValue > currentMinutes Then
             Err.Raise vbObjectError + 116, IMPORT_TITLE, _
-                "Die erwartete Zeitersparnis je Vorgang ist groesser als der heutige Zeitaufwand."
+                GermanText("Die erwartete Zeitersparnis je Vorgang ist gr{oe}{ss}er als der heutige Zeitaufwand.")
         End If
     End If
 
@@ -328,7 +331,7 @@ Private Sub ValidateCoreData(ByRef ids() As String, ByRef values() As String)
        TryParseNonNegativeNumber(FieldValue(ids, values, "annual_time_saving_hours"), annualHours) Then
         If Abs(annualHours - (casesValue * savingValue / 60#)) > 0.02 Then
             Err.Raise vbObjectError + 117, IMPORT_TITLE, _
-                "Die jaehrliche Zeitersparnis widerspricht Vorgangsmenge und Einsparung je Vorgang."
+                GermanText("Die j{ae}hrliche Zeitersparnis widerspricht Vorgangsmenge und Einsparung je Vorgang.")
         End If
     End If
 
@@ -345,27 +348,27 @@ Private Sub ValidateEstimateData(ByRef coreIds() As String, ByRef coreValues() A
     Dim expected As Variant, i As Long, coreValue As String
 
     expected = ExpectedEstimateIds()
-    ValidateExactIdentifierSet estimateIds, expected, "Schaetzungstabelle"
+    ValidateExactIdentifierSet estimateIds, expected, GermanText("Sch{ae}tzungstabelle")
 
     For i = LBound(estimateIds) To UBound(estimateIds)
         coreValue = FieldValue(coreIds, coreValues, estimateIds(i))
         If Len(statusValues(i)) = 0 Then
             Err.Raise vbObjectError + 120, IMPORT_TITLE, _
-                "In der Schaetzungstabelle fehlt der Status fuer " & estimateIds(i) & "."
+                GermanText("In der Sch{ae}tzungstabelle fehlt der Status f{ue}r ") & estimateIds(i) & "."
         End If
         If Not IsAllowedValue(confidenceValues(i), Array("open", "low", "medium", "high")) Then
             Err.Raise vbObjectError + 121, IMPORT_TITLE, _
-                "Ungueltige Sicherheit fuer " & estimateIds(i) & ": " & confidenceValues(i)
+                GermanText("Ung{ue}ltige Sicherheit f{ue}r ") & estimateIds(i) & ": " & confidenceValues(i)
         End If
         If Len(coreValue) > 0 And LCase$(coreValue) <> "open" Then
             If statusValues(i) = "open" Or sourceValues(i) = "open" Or confidenceValues(i) = "open" Then
                 Err.Raise vbObjectError + 122, IMPORT_TITLE, _
-                    "Der Wert " & estimateIds(i) & " ist befuellt, aber sein Schaetzungsnachweis ist offen."
+                    "Der Wert " & estimateIds(i) & GermanText(" ist bef{ue}llt, aber sein Sch{ae}tzungsnachweis ist offen.")
             End If
         End If
         If Len(verifyByValues(i)) = 0 Then
             Err.Raise vbObjectError + 123, IMPORT_TITLE, _
-                "In der Schaetzungstabelle fehlt die spaetere Pruefrolle fuer " & estimateIds(i) & "."
+                GermanText("In der Sch{ae}tzungstabelle fehlt die sp{ae}tere Pr{ue}frolle f{ue}r ") & estimateIds(i) & "."
         End If
     Next i
 End Sub
@@ -398,7 +401,7 @@ End Sub
 
 Private Function ExpectedCoreIds() As Variant
     Dim idList As String
-    idList = "schema_version|document_status|test_case_flag|captured_at|idea_title|short_description|process_label_user|process_classification_internal|process_classification_source|current_workflow|pain_point|pain_frequency|pain_impact|department|business_owner|business_owner_status|target_state|human_review_required|current_systems|current_data|current_data_availability_quality|known_prework|desired_operating_mode"
+    idList = "schema_version|document_status|test_case_flag|captured_at|idea_title|short_description|process_label_user|process_classification_internal|process_classification_source|current_workflow|pain_point|pain_frequency|pain_impact|department|requesting_party|business_owner|business_owner_status|target_state|human_review_required|current_systems|current_data|current_data_availability_quality|known_prework|desired_operating_mode"
     idList = idList & "|qualitative_benefit|benefit_type|cases_per_year|current_minutes_per_case|saving_minutes_per_case|annual_time_saving_hours|annual_time_saving_calculation|one_time_case_count|one_time_saving_minutes_per_case|one_time_time_saving_hours|one_time_time_saving_calculation|affected_employees|affected_roles|one_time_financial_benefit_eur|recurring_financial_benefit_eur_year|financial_benefit_derivation"
     idList = idList & "|latest_effective_date|latest_effective_timing_text|deadline_type|delay_consequence_6_months|obligation_dependency|quality_notes|data_protection_notes|information_security_notes|risk_notes|compliance_notes|strategic_contribution|implementation_duration_value|implementation_duration_unit|internal_effort_value|internal_effort_unit|external_one_time_cost_eur|annual_operating_license_cost_eur"
     idList = idList & "|score_benefit|score_benefit_reason|score_effort|score_effort_reason|score_urgency|score_urgency_reason|triage_path|triage_reason|internal_sources_used|similarity_check_result|open_questions|team_na_supplements"
@@ -480,7 +483,7 @@ Private Sub ValidateWorkbookStructure(ByVal backlog As ListObject)
         "NEU | Einmaliger finanzieller Nutzen (EUR)", "NEU | Wiederkehrender finanzieller Nutzen (EUR/Jahr)", _
         "Verfuegbarkeit von Daten (optional)", "Welche IT-Systeme sind betroffen (optional)", _
         "NEU | Datenverfuegbarkeit und -qualitaet", "NEU | Datenschutz/Sicherheit/Regulierung", _
-        "Anmerkungen", "Quelle", "NEU | Sicherheit der Schaetzung", _
+        "Anmerkungen", REQUESTER_HEADER, "Quelle", "NEU | Sicherheit der Schaetzung", _
         "NEU | Bewertungsstatus und Quelle", "Kundennutzen", "Aufwand", "Dringlichkeit", _
         "NEU | Umsetzungsdauer", "NEU | Einheit Umsetzungsdauer", _
         "NEU | Interner Aufwand", "NEU | Einheit interner Aufwand", _
@@ -544,16 +547,19 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
         SetText backlog, rowIndex, "Fachbereich", FieldValue(coreIds, coreValues, "department")
     End If
     SetText backlog, rowIndex, "Kurzbeschreibung der Projektidee", FieldValue(coreIds, coreValues, "short_description")
+    SetSubmitterAndRequestingParty backlog, rowIndex, _
+        FieldValue(coreIds, coreValues, "requesting_party")
 
     SetText backlog, rowIndex, "Beschreibung des Schmerzpunktes", _
-        JoinLabelled(Array("Aktueller Ablauf", "Problem", "Haeufigkeit", "Auswirkung"), _
+        JoinLabelled(Array("Aktueller Ablauf", "Problem", GermanText("H{ae}ufigkeit"), "Auswirkung"), _
             Array(FieldValue(coreIds, coreValues, "current_workflow"), _
                   FieldValue(coreIds, coreValues, "pain_point"), _
                   FieldValue(coreIds, coreValues, "pain_frequency"), _
                   FieldValue(coreIds, coreValues, "pain_impact")))
     SetText backlog, rowIndex, "Gewuenschter Ausgang / Zielbild", FieldValue(coreIds, coreValues, "target_state")
 
-    urgencyText = JoinLabelled(Array("Zeitwunsch", "Terminart", "Verzoegerungsfolge", "Verpflichtung/Abhaengigkeit"), _
+    urgencyText = JoinLabelled(Array("Zeitwunsch", "Terminart", GermanText("Verz{oe}gerungsfolge"), _
+        GermanText("Verpflichtung/Abh{ae}ngigkeit")), _
         Array(FieldValue(coreIds, coreValues, "latest_effective_timing_text"), _
               FieldValue(coreIds, coreValues, "deadline_type"), _
               FieldValue(coreIds, coreValues, "delay_consequence_6_months"), _
@@ -575,7 +581,7 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
         FieldValue(coreIds, coreValues, "score_urgency") & " - " & _
         FieldValue(coreIds, coreValues, "score_urgency_reason") & " - " & urgencyText
 
-    benefitText = JoinLabelled(Array("Qualitativer Nutzen", "Nutzenart", "Jaehrliche Zeitersparnis", _
+    benefitText = JoinLabelled(Array("Qualitativer Nutzen", "Nutzenart", GermanText("J{ae}hrliche Zeitersparnis"), _
         "Einmalige Zeitersparnis", "Finanzieller Nutzen"), _
         Array(FieldValue(coreIds, coreValues, "qualitative_benefit"), _
               FieldValue(coreIds, coreValues, "benefit_type"), _
@@ -584,7 +590,8 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
               FinancialBenefitSummary(coreIds, coreValues)))
     SetText backlog, rowIndex, "Erwarteter Nutzen", benefitText
 
-    numericBenefitText = JoinLabelled(Array("Jaehrliche Zeitrechnung", "Einmalige Zeitrechnung", "Finanzielle Herleitung"), _
+    numericBenefitText = JoinLabelled(Array(GermanText("J{ae}hrliche Zeitrechnung"), _
+        "Einmalige Zeitrechnung", "Finanzielle Herleitung"), _
         Array(FieldValue(coreIds, coreValues, "annual_time_saving_calculation"), _
               FieldValue(coreIds, coreValues, "one_time_time_saving_calculation"), _
               FieldValue(coreIds, coreValues, "financial_benefit_derivation")))
@@ -599,7 +606,8 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
     SetOptionalNumber backlog, rowIndex, "NEU | Einmaliger finanzieller Nutzen (EUR)", coreIds, coreValues, "one_time_financial_benefit_eur"
     SetOptionalNumber backlog, rowIndex, "NEU | Wiederkehrender finanzieller Nutzen (EUR/Jahr)", coreIds, coreValues, "recurring_financial_benefit_eur_year"
 
-    dataText = JoinLabelled(Array("Aktuell benoetigte Daten", "Verfuegbarkeit und Qualitaet"), _
+    dataText = JoinLabelled(Array(GermanText("Aktuell ben{oe}tigte Daten"), _
+        GermanText("Verf{ue}gbarkeit und Qualit{ae}t")), _
         Array(FieldValue(coreIds, coreValues, "current_data"), _
               FieldValue(coreIds, coreValues, "current_data_availability_quality")))
     SetText backlog, rowIndex, "Verfuegbarkeit von Daten (optional)", dataText
@@ -612,7 +620,7 @@ Private Sub WriteMappedData(ByVal backlog As ListObject, ByVal rowIndex As Long,
                             FieldValue(coreIds, coreValues, "information_security_notes"), _
                             FieldValue(coreIds, coreValues, "compliance_notes"))
 
-        notesText = BuildCompactNotes(coreIds, coreValues)
+    notesText = BuildCompactNotes(coreIds, coreValues)
     SetText backlog, rowIndex, "Anmerkungen", notesText
 
     sourceText = "Word-Import: " & FileNameFromPath(filePath) & _
@@ -684,6 +692,17 @@ Private Function NormalizeHeader(ByVal textValue As String) As String
     NormalizeHeader = textValue
 End Function
 
+Private Function GermanText(ByVal templateText As String) As String
+    templateText = Replace(templateText, "{ae}", ChrW$(&HE4))
+    templateText = Replace(templateText, "{oe}", ChrW$(&HF6))
+    templateText = Replace(templateText, "{ue}", ChrW$(&HFC))
+    templateText = Replace(templateText, "{Ae}", ChrW$(&HC4))
+    templateText = Replace(templateText, "{Oe}", ChrW$(&HD6))
+    templateText = Replace(templateText, "{Ue}", ChrW$(&HDC))
+    templateText = Replace(templateText, "{ss}", ChrW$(&HDF))
+    GermanText = templateText
+End Function
+
 Private Function CellByHeader(ByVal backlog As ListObject, ByVal rowIndex As Long, ByVal headerName As String) As Range
     Dim columnIndex As Long
     columnIndex = FindHeaderIndex(backlog, headerName)
@@ -696,6 +715,32 @@ End Function
 Private Sub SetText(ByVal backlog As ListObject, ByVal rowIndex As Long, ByVal headerName As String, ByVal textValue As String)
     If IsOpenValue(textValue) Then Exit Sub
     CellByHeader(backlog, rowIndex, headerName).Value2 = textValue
+End Sub
+
+Private Sub SetSubmitterAndRequestingParty(ByVal backlog As ListObject, ByVal rowIndex As Long, _
+    ByVal requestingParty As String)
+
+    Dim targetCell As Range
+    Dim existingSubmitter As String
+    Dim firstLine As String
+    Dim lineBreakPosition As Long
+
+    Set targetCell = CellByHeader(backlog, rowIndex, REQUESTER_HEADER)
+    existingSubmitter = Trim$(CStr(targetCell.Value2))
+
+    ' Bei einem erneuten Import nur die erste Einreicher-Zeile weiterverwenden.
+    lineBreakPosition = InStr(existingSubmitter, vbLf)
+    If lineBreakPosition > 0 Then existingSubmitter = Left$(existingSubmitter, lineBreakPosition - 1)
+    If InStr(1, existingSubmitter, "Einreicher:", vbTextCompare) = 1 Then
+        existingSubmitter = Trim$(Mid$(existingSubmitter, Len("Einreicher:") + 1))
+    End If
+
+    If Len(existingSubmitter) = 0 Then existingSubmitter = "offen"
+    If IsOpenValue(requestingParty) Then requestingParty = "offen"
+
+    firstLine = "Einreicher: " & existingSubmitter
+    targetCell.Value2 = firstLine & vbLf & "Auftraggeber/Nutzer: " & requestingParty
+    targetCell.WrapText = True
 End Sub
 
 Private Sub SetTypedValue(ByVal backlog As ListObject, ByVal rowIndex As Long, ByVal headerName As String, ByVal typedValue As Variant)
@@ -961,16 +1006,13 @@ Private Function BuildCompactNotes(ByRef coreIds() As String, _
     AddCompactLine resultText, "Empfehlung", triageValue
 
     AddCompactLine resultText, "Wesentliche Risiken", _
-        CompactList( _
-            FieldValue(coreIds, coreValues, "risk_notes"), 3)
+        CompactList(FieldValue(coreIds, coreValues, "risk_notes"), 3)
 
     AddCompactLine resultText, "Offene Punkte", _
-        CompactList( _
-            FieldValue(coreIds, coreValues, "open_questions"), 4)
+        CompactList(FieldValue(coreIds, coreValues, "open_questions"), 4)
 
     AddCompactLine resultText, "Team NA", _
-        CompactList( _
-            FieldValue(coreIds, coreValues, "team_na_supplements"), 4)
+        CompactList(FieldValue(coreIds, coreValues, "team_na_supplements"), 4)
 
     BuildCompactNotes = resultText
 End Function
@@ -981,10 +1023,7 @@ Private Sub AddCompactLine(ByRef resultText As String, _
     valueText = Trim$(valueText)
     If IsOpenValue(valueText) Then Exit Sub
 
-    If Len(resultText) > 0 Then
-        resultText = resultText & vbLf
-    End If
-
+    If Len(resultText) > 0 Then resultText = resultText & vbLf
     resultText = resultText & labelText & ": " & valueText
 End Sub
 
@@ -1007,17 +1046,10 @@ Private Function CompactList(ByVal rawValue As String, _
     For i = LBound(parts) To UBound(parts)
         itemText = Trim$(CStr(parts(i)))
 
-        If Len(itemText) > 0 And _
-           Not IsDismissibleNoteItem(itemText) Then
-
+        If Len(itemText) > 0 And Not IsDismissibleNoteItem(itemText) Then
             If includedCount < maxItems Then
-                If Len(resultText) > 0 Then
-                    resultText = resultText & "; "
-                End If
-
-                resultText = resultText & _
-                    ShortenText(itemText, 90)
-
+                If Len(resultText) > 0 Then resultText = resultText & "; "
+                resultText = resultText & ShortenText(itemText, 90)
                 includedCount = includedCount + 1
             Else
                 hasMore = True
@@ -1026,16 +1058,13 @@ Private Function CompactList(ByVal rawValue As String, _
     Next i
 
     If hasMore Then
-        resultText = resultText & _
-            "; weitere Details im Word-Dokument"
+        resultText = resultText & "; weitere Details im Word-Dokument"
     End If
 
     CompactList = resultText
 End Function
 
-Private Function IsDismissibleNoteItem( _
-    ByVal itemText As String) As Boolean
-
+Private Function IsDismissibleNoteItem(ByVal itemText As String) As Boolean
     Dim normalized As String
     normalized = NormalizeHeader(itemText)
 
@@ -1048,47 +1077,34 @@ Private Function IsDismissibleNoteItem( _
          Left$(normalized, 16) = "nicht zutreffend")
 End Function
 
-Private Function MapTriageForNotes( _
-    ByVal rawValue As String) As String
-
+Private Function MapTriageForNotes(ByVal rawValue As String) As String
     Dim normalized As String
     normalized = NormalizeHeader(rawValue)
 
     If IsOpenValue(rawValue) Then Exit Function
 
     Select Case normalized
-        Case "self_service_copilot", _
-             "copilot_self_service", _
-             "quick_win", _
-             "quick_win_copilot"
-
+        Case "self_service_copilot", "copilot_self_service", _
+             "quick_win", "quick_win_copilot"
             MapTriageForNotes = "Copilot-Self-Service"
 
-        Case "technical_project", _
-             "technisches_projekt", _
-             "project"
-
+        Case "technical_project", "technisches_projekt", "project"
             MapTriageForNotes = "Technisches Projekt"
 
         Case Else
-            MapTriageForNotes = _
-                ShortenText(Replace(rawValue, "_", " "), 100)
+            MapTriageForNotes = ShortenText(Replace(rawValue, "_", " "), 100)
     End Select
 End Function
 
-Private Function BuildEstimateEvidence( _
-    ByRef ids() As String, _
-    ByRef statusValues() As String, _
-    ByRef sourceValues() As String, _
-    ByRef confidenceValues() As String, _
-    ByRef verifyByValues() As String) As String
+Private Function BuildEstimateEvidence(ByRef ids() As String, _
+    ByRef statusValues() As String, ByRef sourceValues() As String, _
+    ByRef confidenceValues() As String, ByRef verifyByValues() As String) As String
 
     Dim confirmedCount As Long
     Dim estimatedCount As Long
     Dim calculatedCount As Long
     Dim openCount As Long
     Dim otherCount As Long
-
     Dim statusGroup As String
     Dim statusSummary As String
     Dim sourceSummary As String
@@ -1103,22 +1119,15 @@ Private Function BuildEstimateEvidence( _
         statusGroup = EstimateStatusGroup(statusValues(i))
 
         Select Case statusGroup
-            Case "confirmed"
-                confirmedCount = confirmedCount + 1
-            Case "estimated"
-                estimatedCount = estimatedCount + 1
-            Case "calculated"
-                calculatedCount = calculatedCount + 1
-            Case "open"
-                openCount = openCount + 1
-            Case Else
-                otherCount = otherCount + 1
+            Case "confirmed": confirmedCount = confirmedCount + 1
+            Case "estimated": estimatedCount = estimatedCount + 1
+            Case "calculated": calculatedCount = calculatedCount + 1
+            Case "open": openCount = openCount + 1
+            Case Else: otherCount = otherCount + 1
         End Select
 
         If statusGroup <> "open" Then
-            humanValue = HumanEstimateSource( _
-                sourceValues(i), statusGroup)
-
+            humanValue = HumanEstimateSource(sourceValues(i), statusGroup)
             AddUniqueText sourceSummary, sourceKeys, humanValue
         End If
 
@@ -1128,52 +1137,42 @@ Private Function BuildEstimateEvidence( _
 
     AddCountText statusSummary, confirmedCount, _
         "best" & ChrW$(&HE4) & "tigt"
-
     AddCountText statusSummary, estimatedCount, _
         "grob gesch" & ChrW$(&HE4) & "tzt"
-
     AddCountText statusSummary, calculatedCount, "berechnet"
     AddCountText statusSummary, openCount, "offen"
     AddCountText statusSummary, otherCount, "sonstig"
 
     AddCompactLine resultText, "Status", statusSummary
     AddCompactLine resultText, "Quellen", sourceSummary
-    AddCompactLine resultText, _
-        "Pr" & ChrW$(&HFC) & "fung", verifySummary
+    AddCompactLine resultText, "Pr" & ChrW$(&HFC) & "fung", verifySummary
 
     BuildEstimateEvidence = resultText
 End Function
 
-Private Function EstimateStatusGroup( _
-    ByVal rawStatus As String) As String
-
+Private Function EstimateStatusGroup(ByVal rawStatus As String) As String
     Dim normalized As String
     normalized = NormalizeHeader(rawStatus)
 
     If IsOpenValue(rawStatus) Then
         EstimateStatusGroup = "open"
-
     ElseIf InStr(normalized, "confirmed") > 0 Or _
            InStr(normalized, "bestaetig") > 0 Then
         EstimateStatusGroup = "confirmed"
-
     ElseIf InStr(normalized, "calculation") > 0 Or _
            InStr(normalized, "calculated") > 0 Or _
            InStr(normalized, "berechn") > 0 Then
         EstimateStatusGroup = "calculated"
-
     ElseIf InStr(normalized, "rough") > 0 Or _
            InStr(normalized, "estimate") > 0 Or _
            InStr(normalized, "schaetz") > 0 Then
         EstimateStatusGroup = "estimated"
-
     Else
         EstimateStatusGroup = "other"
     End If
 End Function
 
-Private Function HumanEstimateSource( _
-    ByVal rawSource As String, _
+Private Function HumanEstimateSource(ByVal rawSource As String, _
     ByVal statusGroup As String) As String
 
     Dim normalized As String
@@ -1183,51 +1182,33 @@ Private Function HumanEstimateSource( _
 
     If statusGroup = "calculated" Then
         HumanEstimateSource = "Berechnung aus Angaben"
-
     ElseIf InStr(normalized, "nutzerbestaetig") > 0 Then
-        HumanEstimateSource = _
-            "Nutzerbest" & ChrW$(&HE4) & "tigung"
-
+        HumanEstimateSource = "Nutzerbest" & ChrW$(&HE4) & "tigung"
     ElseIf InStr(normalized, "nutzer") > 0 Then
         HumanEstimateSource = "Nutzerangabe"
-
     ElseIf InStr(normalized, "intern") > 0 Or _
            InStr(normalized, "dokument") > 0 Or _
            InStr(normalized, "sharepoint") > 0 Then
         HumanEstimateSource = "Interne Quelle"
-
     Else
         HumanEstimateSource = ShortenText(rawSource, 70)
     End If
 End Function
 
-Private Function HumanVerifyBy( _
-    ByVal rawValue As String) As String
-
+Private Function HumanVerifyBy(ByVal rawValue As String) As String
     Dim normalized As String
     normalized = NormalizeHeader(rawValue)
 
     If IsOpenValue(rawValue) Then Exit Function
 
     Select Case normalized
-        Case "department", "fachbereich"
-            HumanVerifyBy = "Fachbereich"
-
-        Case "team_na", "team na"
-            HumanVerifyBy = "Team NA"
-
-        Case "business_owner", "business owner"
-            HumanVerifyBy = "Business Owner"
-
-        Case "implementation_team", "umsetzungsteam"
-            HumanVerifyBy = "Umsetzungsteam"
-
-        Case "committee", "fachgremium"
-            HumanVerifyBy = "Fachgremium"
-
+        Case "department", "fachbereich": HumanVerifyBy = "Fachbereich"
+        Case "team_na", "team na": HumanVerifyBy = "Team NA"
+        Case "business_owner", "business owner": HumanVerifyBy = "Business Owner"
+        Case "implementation_team", "umsetzungsteam": HumanVerifyBy = "Umsetzungsteam"
+        Case "committee", "fachgremium": HumanVerifyBy = "Fachgremium"
         Case Else
-            HumanVerifyBy = _
-                ShortenText(Replace(rawValue, "_", " "), 50)
+            HumanVerifyBy = ShortenText(Replace(rawValue, "_", " "), 50)
     End Select
 End Function
 
@@ -1235,13 +1216,8 @@ Private Sub AddCountText(ByRef resultText As String, _
     ByVal itemCount As Long, ByVal descriptionText As String)
 
     If itemCount = 0 Then Exit Sub
-
-    If Len(resultText) > 0 Then
-        resultText = resultText & ", "
-    End If
-
-    resultText = resultText & _
-        CStr(itemCount) & " " & descriptionText
+    If Len(resultText) > 0 Then resultText = resultText & ", "
+    resultText = resultText & CStr(itemCount) & " " & descriptionText
 End Sub
 
 Private Sub AddUniqueText(ByRef resultText As String, _
@@ -1250,18 +1226,11 @@ Private Sub AddUniqueText(ByRef resultText As String, _
     Dim normalizedKey As String
 
     If IsOpenValue(newValue) Then Exit Sub
-
     normalizedKey = "|" & NormalizeHeader(newValue) & "|"
-
-    If InStr(1, keyText, normalizedKey, _
-        vbTextCompare) > 0 Then Exit Sub
+    If InStr(1, keyText, normalizedKey, vbTextCompare) > 0 Then Exit Sub
 
     keyText = keyText & normalizedKey
-
-    If Len(resultText) > 0 Then
-        resultText = resultText & ", "
-    End If
-
+    If Len(resultText) > 0 Then resultText = resultText & ", "
     resultText = resultText & newValue
 End Sub
 
@@ -1280,8 +1249,7 @@ Private Function ShortenText(ByVal rawValue As String, _
     If Len(rawValue) <= maximumLength Then
         ShortenText = rawValue
     Else
-        ShortenText = _
-            Left$(rawValue, maximumLength - 3) & "..."
+        ShortenText = Left$(rawValue, maximumLength - 3) & "..."
     End If
 End Function
 
